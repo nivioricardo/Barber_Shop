@@ -8,24 +8,32 @@ import logging
 import sqlite3
 from contextlib import contextmanager
 import re
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Configuração do Flask
 app = Flask(__name__)
-app.secret_key = 'barbershop_secret_key_2024'
+app.secret_key = os.environ.get('SECRET_KEY', 'barbershop_secret_key_2024')
 
-# Configuração CORS
+# Configuração CORS para produção
 CORS(app, resources={
     r"/*": {
-        "origins": ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5000", "http://127.0.0.1:5000"],
+        "origins": [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5000",
+            "http://127.0.0.1:5000",
+            "https://barber-shop.onrender.com",  # Seu domínio no Render
+            "https://*.onrender.com"  # Todos subdomínios Render
+        ],
         "methods": ["GET", "POST", "PUT", "DELETE"],
         "allow_headers": ["Content-Type"]
     }
 })
 
-# Configuração de logging
+# Configuração de logging para produção
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
@@ -257,11 +265,11 @@ db = Database()
 
 
 # =============================================================================
-# FUNÇÕES AUXILIARES CORRIGIDAS
+# FUNÇÕES AUXILIARES
 # =============================================================================
 
 def rate_limit(max_requests=5, window=900):
-    """Decorator para rate limiting CORRIGIDO"""
+    """Decorator para rate limiting"""
 
     def decorator(f):
         @wraps(f)
@@ -269,13 +277,11 @@ def rate_limit(max_requests=5, window=900):
             now = datetime.now()
             window_start = now - timedelta(seconds=window)
 
-            # ✅ CORREÇÃO: Converter para timestamp para comparação consistente
             window_start_ts = window_start.timestamp()
 
             if 'requests' not in session:
                 session['requests'] = []
 
-            # ✅ CORREÇÃO: Comparar timestamps (float) com timestamps (float)
             session['requests'] = [req_time for req_time in session['requests']
                                    if req_time > window_start_ts]
 
@@ -285,7 +291,6 @@ def rate_limit(max_requests=5, window=900):
                     'message': 'Muitas requisições. Tente novamente em 15 minutos.'
                 }), 429
 
-            # ✅ CORREÇÃO: Adicionar timestamp (float)
             session['requests'].append(now.timestamp())
             session.modified = True
 
@@ -605,7 +610,8 @@ def config():
 def health():
     return jsonify({
         'status': 'healthy',
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
+        'environment': 'production'
     })
 
 
@@ -618,15 +624,8 @@ def debug():
     return jsonify({
         'data_teste': amanha,
         'horarios_gerados': horarios_amanha,
-        'configuracoes': {
-            'dias_funcionamento': db.obter_configuracao('dias_funcionamento'),
-            'horario_abertura': db.obter_configuracao('horario_abertura'),
-            'horario_fechamento': db.obter_configuracao('horario_fechamento'),
-            'intervalo_almoco': {
-                'inicio': db.obter_configuracao('intervalo_almoco_inicio'),
-                'fim': db.obter_configuracao('intervalo_almoco_fim')
-            }
-        }
+        'environment': 'production',
+        'timestamp': datetime.now().isoformat()
     })
 
 
@@ -642,15 +641,34 @@ def internal_error(error):
     return jsonify({'error': 'Erro interno do servidor'}), 500
 
 
+# =============================================================================
+# CONFIGURAÇÃO PARA PRODUÇÃO
+# =============================================================================
+
+# Configuração específica para produção
+class ProductionConfig:
+    DEBUG = False
+    TESTING = False
+
+
+# Aplicar configurações de produção
+app.config.from_object(ProductionConfig)
+
+# Handler específico para o Gunicorn
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
 if __name__ == '__main__':
-    os.makedirs('templates', exist_ok=True)
-
-    print("=" * 50)
-    print("🪒 Barber&Shop - Sistema Corrigido!")
-    print("=" * 50)
-    print("✅ Rate Limiting Corrigido")
-    print("✅ Sistema 100% Funcional")
+    # Em produção, o Gunicorn vai rodar a aplicação
+    # Este bloco só é executado em desenvolvimento
+    print("=" * 60)
+    print("🪒 Barber&Shop - Modo Desenvolvimento")
+    print("=" * 60)
+    print("✅ Para produção, use: gunicorn app:app")
     print("🌐 Servidor: http://localhost:5000")
-    print("=" * 50)
+    print("=" * 60)
 
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(
+        host='0.0.0.0',
+        port=5000,
+        debug=False
+    )
