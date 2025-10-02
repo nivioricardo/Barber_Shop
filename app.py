@@ -9,6 +9,7 @@ import sqlite3
 from contextlib import contextmanager
 import re
 from werkzeug.middleware.proxy_fix import ProxyFix
+import urllib.parse
 
 # Configuração do Flask
 app = Flask(__name__)
@@ -38,13 +39,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# CONFIGURAÇÕES DO WHATSAPP
+# CONFIGURAÇÕES DO WHATSAPP - ATUALIZADA
 # =============================================================================
 
 WHATSAPP_CONFIG = {
     'enabled': True,
     'api_url': 'https://api.whatsapp.com/send',
-    'phone_number': '5516997034690',
+    'phone_number': '5516997034690',  # Seu número
     'message_template': '''🪒 *Novo Agendamento - Barber&Shop* 🪒
 
 *Cliente:* {nome}
@@ -468,10 +469,10 @@ def gerar_horarios_disponiveis(data_str, servico_codigo=None):
 
 
 def enviar_whatsapp(agendamento):
-    """Envia notificação via WhatsApp"""
+    """Envia notificação via WhatsApp - VERSÃO ATUALIZADA"""
     if not WHATSAPP_CONFIG['enabled']:
         logger.info("WhatsApp desativado nas configurações")
-        return True
+        return None
 
     try:
         mensagem = WHATSAPP_CONFIG['message_template'].format(
@@ -485,15 +486,18 @@ def enviar_whatsapp(agendamento):
             numero_confirmacao=agendamento['numero_confirmacao']
         )
 
-        import requests
-        mensagem_codificada = requests.utils.quote(mensagem)
+        # Usando urllib.parse.quote que é mais confiável no Render
+        mensagem_codificada = urllib.parse.quote(mensagem, safe='')
+
         whatsapp_url = f"{WHATSAPP_CONFIG['api_url']}?phone={WHATSAPP_CONFIG['phone_number']}&text={mensagem_codificada}"
 
-        logger.info(f"📱 Link WhatsApp gerado")
+        logger.info(f"📱 Link WhatsApp gerado com sucesso")
+        logger.info(f"🔗 URL: {whatsapp_url[:100]}...")  # Log parcial para debug
+
         return whatsapp_url
 
     except Exception as e:
-        logger.error(f"Erro ao gerar link WhatsApp: {e}")
+        logger.error(f"❌ Erro ao gerar link WhatsApp: {e}")
         return None
 
 
@@ -546,7 +550,7 @@ def agendar():
                 'message': 'Dados não fornecidos'
             }), 400
 
-        logger.info(f"Novo agendamento: {dados.get('nome')}")
+        logger.info(f"📝 Novo agendamento solicitado: {dados.get('nome')}")
 
         campos_obrigatorios = ['nome', 'telefone', 'servico', 'data', 'horario']
         campos_faltantes = [campo for campo in campos_obrigatorios if not dados.get(campo)]
@@ -591,12 +595,6 @@ def agendar():
             }), 409
 
         # REMOVIDO: Limite de 3 agendamentos por telefone para facilitar testes
-        # agendamentos_recentes = db.buscar_agendamentos_por_telefone(telefone_validado)
-        # if len(agendamentos_recentes) >= 3:
-        #     return jsonify({
-        #         'success': False,
-        #         'message': 'Limite de 3 agendamentos por telefone'
-        #     }), 429
 
         numero_confirmacao = gerar_numero_confirmacao()
 
@@ -617,9 +615,13 @@ def agendar():
         novo_agendamento = db.criar_agendamento(agendamento_data)
 
         if novo_agendamento:
-            logger.info(f"Agendamento criado: {numero_confirmacao}")
+            logger.info(f"✅ Agendamento criado com sucesso: {numero_confirmacao}")
 
+            # Gerar link do WhatsApp
             whatsapp_link = enviar_whatsapp(novo_agendamento)
+
+            if not whatsapp_link:
+                logger.warning("⚠️  Link WhatsApp não foi gerado, mas agendamento foi salvo")
 
             response_data = {
                 'success': True,
@@ -643,7 +645,7 @@ def agendar():
             }), 500
 
     except Exception as e:
-        logger.error(f"Erro no agendamento: {e}")
+        logger.error(f"❌ Erro no agendamento: {e}")
         return jsonify({
             'success': False,
             'message': 'Erro interno do servidor'
@@ -759,6 +761,44 @@ def debug():
         'environment': 'production',
         'timestamp': datetime.now().isoformat()
     })
+
+
+# Nova rota para testar WhatsApp
+@app.route('/test-whatsapp')
+def test_whatsapp():
+    """Rota para testar a geração do link do WhatsApp"""
+    try:
+        agendamento_teste = {
+            'nome': 'Cliente Teste',
+            'telefone': '(16) 99999-9999',
+            'servico': 'Corte Social',
+            'data': '2024-12-25',
+            'horario': '10:00',
+            'valor': 30.00,
+            'duracao': 30,
+            'numero_confirmacao': 'BSTEST123'
+        }
+
+        whatsapp_link = enviar_whatsapp(agendamento_teste)
+
+        if whatsapp_link:
+            return jsonify({
+                'success': True,
+                'message': 'Link WhatsApp gerado com sucesso',
+                'whatsapp_link': whatsapp_link
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Falha ao gerar link WhatsApp'
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Erro no teste WhatsApp: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Erro: {str(e)}'
+        }), 500
 
 
 # Error handlers
