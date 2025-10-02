@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barber&Shop — Agenda Online</title>
+
+  <!-- ✅ ACESSIBILIDADE: Meta tags para SEO e acessibilidade -->
+  <meta name="description" content="Agende seu horário na Barber&Shop online. Corte social, kids, barba e mais.">
+  <meta name="keywords" content="barbearia, corte de cabelo, barba, agenda online, Ibaté, Barber&Shop">
+
+  <!-- ✅ ACESSIBILIDADE: Idioma definido para leitores de tela -->
+  <html lang="pt-BR">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    /* ✅ ACESSIBILIDADE: Cabeçalho com navegação clara */
+    header {
+      background: #111;
+      color: #fff;
+      padding: 1rem;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      color: #d4af37;
+    }
+
+    nav {
+      margin-top: 0.5rem;
+    }
+
+    nav a {
+      color: #fff;
+      margin: 0 0.5rem;
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+
+    nav a:hover {
+      color: #d4af37;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 1rem;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      margin-bottom: 1rem;
+      font-size: 1.5rem;
+      color: #111;
+    }
+
+    .services {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      padding: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: #fafafa;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    .card h3 {
+      margin-bottom: 0.5rem;
+      color: #111;
+    }
+
+    form {
+      margin-top: 2rem;
+      display: grid;
+      gap: 1.2rem;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.3rem;
+      font-weight: bold;
+    }
+
+    /* ✅ ACESSIBILIDADE: Indicador visual de campo obrigatório */
+    .required {
+      color: #e74c3c;
+    }
+
+    input, select, button {
+      padding: 0.6rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      width: 100%;
+      font-size: 1rem;
+      transition: border-color 0.2s;
+    }
+
+    /* ✅ ACESSIBILIDADE: Foco visível para navegação por teclado */
+    input:focus, select:focus {
+      outline: none;
+      border-color: #111;
+      box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.2);
+    }
+
+    button {
+      background: #111;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    button:hover {
+      background: #333;
+    }
+
+    button:disabled {
+      background: #777;
+      cursor: not-allowed;
+    }
+
+    /* ✅ ACESSIBILIDADE: Feedback visual de erro */
+    .field-error {
+      color: #e74c3c;
+      font-size: 0.8rem;
+      margin-top: 0.3rem;
+      display: block;
+    }
+
+    /* ✅ ACESSIBILIDADE: Mensagens de status bem destacadas */
+    .msg {
+      padding: 0.8rem;
+      border-radius: 4px;
+      margin-top: 1rem;
+      display: none;
+    }
+
+    .msg.sucesso {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .msg.erro {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    footer {
+      text-align: center;
+      padding: 1rem;
+      margin-top: 2rem;
+      background: #111;
+      color: #fff;
+    }
+
+    footer a {
+      color: #fff;
+      text-decoration: none;
+    }
+
+    /* ✅ ACESSIBILIDADE: Indicador visual de carregamento */
+    .loading-spinner {
+      display: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ✅ ACESSIBILIDADE: Design responsivo */
+    @media (max-width: 768px) {
+      .container {
+        margin: 1rem;
+        padding: 1rem;
+      }
+
+      .services {
+        grid-template-columns: 1fr;
+      }
+
+      header h1 {
+        font-size: 1.5rem;
+      }
+
+      nav a {
+        display: inline-block;
+        margin: 0.3rem;
+      }
+    }
+
+    /* ✅ ACESSIBILIDADE: Foco visível aprimorado */
+    a:focus, button:focus, input:focus, select:focus {
+      outline: 2px solid #111;
+      outline-offset: 2px;
+    }
+
+    /* ✅ ACESSIBILIDADE: Contraste adequado para daltonismo */
+    .servico-destaque {
+      border-left: 4px solid #d4af37;
+    }
+
+    /* ✅ ACESSIBILIDADE: Skip link para navegação por teclado */
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 6px;
+      background: #111;
+      color: #fff;
+      padding: 8px;
+      text-decoration: none;
+      z-index: 1000;
+    }
+
+    .skip-link:focus {
+      top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <!-- ✅ ACESSIBILIDADE: Skip link para pular navegação -->
+  <a href="#main-content" class="skip-link">Pular para o conteúdo principal</a>
+
+  <header>
+    <h1>Barber&Shop</h1>
+    <nav aria-label="Navegação principal">
+      <a href="#servicos">Serviços</a>
+      <a href="#agendar">Agendar</a>
+      <a href="#contato">Contato</a>
+    </nav>
+  </header>
+
+  <main class="container" id="main-content">
+    <section id="servicos" aria-labelledby="servicos-heading">
+      <h2 id="servicos-heading">Nossos Serviços</h2>
+      <div class="services">
+        <div class="card servico-destaque">
+          <h3>Corte Social</h3>
+          <p>R$ 45,00 — Duração: 30min</p>
+        </div>
+        <div class="card">
+          <h3>Corte Kids</h3>
+          <p>R$ 35,00 — Duração: 25min</p>
+        </div>
+        <div class="card">
+          <h3>Cabelo e Barba</h3>
+          <p>R$ 70,00 — Duração: 50min</p>
+        </div>
+        <div class="card">
+          <h3>Degradê Giletado</h3>
+          <p>R$ 60,00 — Duração: 40min</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="agendar" aria-labelledby="agendar-heading">
+      <h2 id="agendar-heading">Agendar Horário</h2>
+      <form id="bookingForm" novalidate aria-describedby="form-instructions">
+        <p id="form-instructions" class="sr-only">
+          Preencha todos os campos obrigatórios marcados com asterisco vermelho.
+        </p>
+
+        <div class="form-group">
+          <label for="nome" class="required">Nome</label>
+          <input type="text" id="nome" name="nome" autocomplete="name" required
+                 aria-required="true" aria-describedby="nome-error">
+          <span class="field-error" id="nome-error" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="telefone" class="required">Telefone (com DDD)</label>
+          <input type="tel" id="telefone" name="telefone" placeholder="(16) 99999-9999"
+                 autocomplete="tel" required aria-required="true" aria-describedby="telefone-error">
+          <span class="field-error" id="telefone-error" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="servico" class="required">Serviço</label>
+          <select id="servico" name="servico" required aria-required="true" aria-describedby="servico-error">
+            <option value="">Selecione...</option>
+            <option value="corte">Corte Social</option>
+            <option value="kids">Corte Kids</option>
+            <option value="combo">Cabelo e Barba</option>
+            <option value="degrade">Degradê Giletado</option>
+          </select>
+          <span class="field-error" id="servico-error" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="data" class="required">Data</label>
+          <input type="date" id="data" name="data" required
+                 aria-required="true" aria-describedby="data-error">
+          <span class="field-error" id="data-error" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="hora" class="required">Horário</label>
+          <select id="hora" name="hora" required aria-required="true" aria-describedby="hora-error">
+            <option value="">Selecione a data primeiro</option>
+          </select>
+          <span class="field-error" id="hora-error" role="alert"></span>
+        </div>
+
+        <button type="submit" aria-label="Confirmar Agendamento" id="submit-btn">
+          <span class="loading-spinner" aria-hidden="true"></span>
+          <span class="btn-text">Confirmar Agendamento</span>
+        </button>
+      </form>
+
+      <!-- ✅ ACESSIBILIDADE: Mensagem de status com ARIA live region -->
+      <div id="msg" class="msg" role="alert" aria-live="assertive" aria-atomic="true"></div>
+    </section>
+
+    <section id="contato" aria-labelledby="contato-heading">
+      <h2 id="contato-heading">Contato</h2>
+      <p>📍 Avenida São João, 777 - Centro, Ibaté/SP</p>
+      <p>📞 <a href="tel:16997034690">(16) 99703-4690</a></p>
+      <p>📧 <a href="mailto:nivioricardo@hotmail.com">nivioricardo@hotmail.com</a></p>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 Barber&Shop — Todos os direitos reservados.</p>
+  </footer>
+
+  <script>
+    // ✅ ACESSIBILIDADE: Texto oculto visualmente mas disponível para leitores de tela
+    const style = document.createElement('style');
+    style.textContent = `
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    `;
+    document.head.appendChild(style);
+
+    // [Resto do JavaScript permanece igual...]
+    // Formatação automática do telefone
+    function formatarTelefone(input) {
+        let value = input.value.replace(/\D/g, '');
+
+        if (value.startsWith('55')) {
+            value = value.substring(2);
+        }
+
+        if (value.length > 11) {
+            value = value.substring(0, 11);
+        }
+
+        if (value.length > 10) {
+            value = value.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+        } else if (value.length > 6) {
+            value = value.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
+        } else if (value.length > 2) {
+            value = value.replace(/(\d{2})(\d{0,5})/, '($1) $2');
+        } else if (value.length > 0) {
+            value = value.replace(/(\d{0,2})/, '($1');
+        }
+
+        input.value = value;
+    }
+
+    // ✅ ACESSIBILIDADE: Configuração de data mínima com feedback
+    function configurarDataMinima() {
+        const dataInput = document.getElementById('data');
+        const hoje = new Date().toISOString().split('T')[0];
+        dataInput.min = hoje;
+
+        dataInput.addEventListener('change', function() {
+            const dataSelecionada = new Date(this.value + 'T00:00:00');
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+
+            if (dataSelecionada < hoje) {
+                mostrarErroCampo(this, 'data-error', 'Por favor, selecione uma data futura.');
+                this.value = '';
+            } else {
+                limparErroCampo('data-error');
+            }
+        });
+    }
+
+    function mostrarErroCampo(campo, erroId, mensagem) {
+        campo.style.borderColor = '#e74c3c';
+        campo.setAttribute('aria-invalid', 'true');
+        document.getElementById(erroId).textContent = mensagem;
+    }
+
+    function limparErroCampo(erroId) {
+        const campo = document.querySelector(`[aria-describedby="${erroId}"]`);
+        if (campo) {
+            campo.style.borderColor = '#ccc';
+            campo.removeAttribute('aria-invalid');
+        }
+        document.getElementById(erroId).textContent = '';
+    }
+
+    async function carregarHorarios() {
+        const data = document.getElementById("data").value;
+        if (!data) return;
+
+        try {
+            const select = document.getElementById("hora");
+            select.disabled = true;
+            select.innerHTML = '<option value="">Carregando horários...</option>';
+
+            const res = await fetch("/horarios?data=" + encodeURIComponent(data));
+
+            if (!res.ok) throw new Error('Erro ao carregar horários');
+
+            const horarios = await res.json();
+            select.innerHTML = "";
+
+            if (!horarios || horarios.length === 0) {
+                const opt = document.createElement("option");
+                opt.value = "";
+                opt.textContent = "Nenhum horário disponível";
+                select.appendChild(opt);
+                select.disabled = true;
+            } else {
+                horarios.forEach(h => {
+                    const opt = document.createElement("option");
+                    opt.value = h;
+                    opt.textContent = h;
+                    select.appendChild(opt);
+                });
+                select.disabled = false;
+            }
+        } catch (err) {
+            console.error('Erro ao carregar horários:', err);
+            mostrarMensagem("Erro ao carregar horários disponíveis. Tente novamente.", false);
+
+            const select = document.getElementById("hora");
+            select.innerHTML = '<option value="">Erro ao carregar horários</option>';
+            select.disabled = true;
+        }
+    }
+
+    function mostrarMensagem(texto, sucesso = true) {
+        const msgDiv = document.getElementById("msg");
+        msgDiv.textContent = texto;
+        msgDiv.className = "msg " + (sucesso ? "sucesso" : "erro");
+        msgDiv.style.display = "block";
+
+        msgDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        if (sucesso) {
+            setTimeout(() => {
+                msgDiv.style.display = "none";
+            }, 5000);
+        }
+    }
+
+    function validarFormulario() {
+        let valido = true;
+
+        const nome = document.getElementById('nome').value.trim();
+        if (nome.length < 2 || nome.length > 100) {
+            mostrarErroCampo(document.getElementById('nome'), 'nome-error', 'Nome deve ter entre 2 e 100 caracteres');
+            valido = false;
+        } else {
+            limparErroCampo('nome-error');
+        }
+
+        const telefone = document.getElementById('telefone').value;
+        const telefoneNumeros = telefone.replace(/\D/g, '');
+        if (telefoneNumeros.length < 10 || telefoneNumeros.length > 11) {
+            mostrarErroCampo(document.getElementById('telefone'), 'telefone-error', 'Telefone inválido. Use o formato (XX) XXXXX-XXXX');
+            valido = false;
+        } else {
+            limparErroCampo('telefone-error');
+        }
+
+        const servico = document.getElementById('servico').value;
+        if (!servico) {
+            mostrarErroCampo(document.getElementById('servico'), 'servico-error', 'Selecione um serviço');
+            valido = false;
+        } else {
+            limparErroCampo('servico-error');
+        }
+
+        const data = document.getElementById('data').value;
+        if (!data) {
+            mostrarErroCampo(document.getElementById('data'), 'data-error', 'Selecione uma data');
+            valido = false;
+        } else {
+            const dataObj = new Date(data + 'T00:00:00');
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+
+            if (dataObj < hoje) {
+                mostrarErroCampo(document.getElementById('data'), 'data-error', 'Selecione uma data futura');
+                valido = false;
+            } else {
+                limparErroCampo('data-error');
+            }
+        }
+
+        const horario = document.getElementById('hora').value;
+        if (!horario) {
+            mostrarErroCampo(document.getElementById('hora'), 'hora-error', 'Selecione um horário');
+            valido = false;
+        } else {
+            limparErroCampo('hora-error');
+        }
+
+        return valido;
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("bookingForm");
+        const telefoneInput = document.getElementById("telefone");
+        const dataInput = document.getElementById("data");
+        const submitBtn = document.getElementById("submit-btn");
+        const loadingSpinner = submitBtn.querySelector('.loading-spinner');
+        const btnText = submitBtn.querySelector('.btn-text');
+
+        telefoneInput.addEventListener("input", function() {
+            formatarTelefone(this);
+        });
+
+        configurarDataMinima();
+        dataInput.addEventListener("change", carregarHorarios);
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            if (!validarFormulario()) {
+                mostrarMensagem("Por favor, corrija os erros no formulário.", false);
+                return;
+            }
+
+            try {
+                submitBtn.disabled = true;
+                loadingSpinner.style.display = 'inline-block';
+                btnText.textContent = 'Processando...';
+
+                const formData = {
+                    nome: document.getElementById('nome').value.trim(),
+                    telefone: document.getElementById('telefone').value,
+                    servico: document.getElementById('servico').value,
+                    data: document.getElementById('data').value,
+                    horario: document.getElementById('hora').value
+                };
+
+                const res = await fetch("/agendar", {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    mostrarMensagem("✅ " + result.message, true);
+
+                    if (result.whatsapp_link) {
+                        setTimeout(() => {
+                            window.open(result.whatsapp_link, '_blank');
+                        }, 1000);
+                    }
+
+                    form.reset();
+                    document.getElementById("hora").innerHTML = '<option value="">Selecione a data primeiro</option>';
+
+                } else {
+                    mostrarMensagem("❌ " + result.message, false);
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                mostrarMensagem("❌ Erro de conexão. Tente novamente.", false);
+            } finally {
+                submitBtn.disabled = false;
+                loadingSpinner.style.display = 'none';
+                btnText.textContent = 'Confirmar Agendamento';
+            }
+        });
+
+        const inputs = form.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            input.addEventListener('input', function() {
+                const fieldName = this.id;
+                limparErroCampo(fieldName + '-error');
+                this.style.borderColor = '#ccc';
+            });
+        });
+    });
+  </script>
+</body>
+</html>
