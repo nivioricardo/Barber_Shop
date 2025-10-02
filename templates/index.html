@@ -184,6 +184,22 @@
       border: 1px solid #f5c6cb;
     }
 
+    .msg.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+
+    .whatsapp-link {
+      color: #007bff;
+      text-decoration: underline;
+      font-weight: bold;
+    }
+
+    .whatsapp-link:hover {
+      color: #0056b3;
+    }
+
     footer {
       text-align: center;
       padding: 1rem;
@@ -386,7 +402,6 @@
     `;
     document.head.appendChild(style);
 
-    // [Resto do JavaScript permanece igual...]
     // Formatação automática do telefone
     function formatarTelefone(input) {
         let value = input.value.replace(/\D/g, '');
@@ -488,18 +503,25 @@
         }
     }
 
-    function mostrarMensagem(texto, sucesso = true) {
+    function mostrarMensagem(texto, sucesso = true, tipo = '') {
         const msgDiv = document.getElementById("msg");
-        msgDiv.textContent = texto;
-        msgDiv.className = "msg " + (sucesso ? "sucesso" : "erro");
+
+        if (typeof texto === 'string') {
+            msgDiv.innerHTML = texto;
+        } else {
+            msgDiv.innerHTML = '';
+            msgDiv.appendChild(texto);
+        }
+
+        msgDiv.className = "msg " + (tipo || (sucesso ? "sucesso" : "erro"));
         msgDiv.style.display = "block";
 
         msgDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-        if (sucesso) {
+        if (sucesso && tipo !== 'info') {
             setTimeout(() => {
                 msgDiv.style.display = "none";
-            }, 5000);
+            }, 8000);
         }
     }
 
@@ -559,6 +581,22 @@
         return valido;
     }
 
+    // ✅ NOVA FUNÇÃO: Verificar se popup foi bloqueado e fornecer fallback
+    function abrirWhatsAppComFallback(whatsappLink) {
+        return new Promise((resolve) => {
+            const newWindow = window.open(whatsappLink, '_blank', 'width=600,height=700');
+
+            // Verificar se o popup foi bloqueado
+            setTimeout(() => {
+                if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+                    resolve(false); // Popup bloqueado
+                } else {
+                    resolve(true); // Popup aberto com sucesso
+                }
+            }, 1000);
+        });
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("bookingForm");
         const telefoneInput = document.getElementById("telefone");
@@ -606,14 +644,38 @@
                 const result = await res.json();
 
                 if (result.success) {
-                    mostrarMensagem("✅ " + result.message, true);
-
+                    // ✅ MELHORIA: Feedback melhor do WhatsApp
                     if (result.whatsapp_link) {
-                        setTimeout(() => {
-                            window.open(result.whatsapp_link, '_blank');
-                        }, 1000);
+                        mostrarMensagem("✅ Agendamento confirmado! Abrindo WhatsApp...", true);
+
+                        // Tentar abrir o WhatsApp e verificar se popup foi bloqueado
+                        const popupAberto = await abrirWhatsAppComFallback(result.whatsapp_link);
+
+                        if (!popupAberto) {
+                            // Popup bloqueado - mostrar link clicável
+                            const mensagemComLink = document.createElement('div');
+                            mensagemComLink.innerHTML = `
+                                ✅ <strong>Agendamento Confirmado!</strong><br>
+                                📱 <strong>Popup bloqueado?</strong>
+                                <a href="${result.whatsapp_link}" target="_blank" class="whatsapp-link" style="color: #007bff; text-decoration: underline;">
+                                    Clique aqui para abrir o WhatsApp
+                                </a>
+                                <br><br>
+                                <small>Código de confirmação: ${result.numero_confirmacao}</small>
+                            `;
+                            mostrarMensagem(mensagemComLink, true, 'info');
+                        } else {
+                            // Popup aberto com sucesso
+                            setTimeout(() => {
+                                mostrarMensagem("✅ Agendamento confirmado! WhatsApp aberto.", true);
+                            }, 2000);
+                        }
+                    } else {
+                        // WhatsApp não disponível
+                        mostrarMensagem(`✅ Agendamento confirmado! Código: ${result.numero_confirmacao}`, true);
                     }
 
+                    // Limpar formulário
                     form.reset();
                     document.getElementById("hora").innerHTML = '<option value="">Selecione a data primeiro</option>';
 

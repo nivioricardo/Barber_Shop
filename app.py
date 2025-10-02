@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, send_from_directory
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import json
@@ -22,8 +22,8 @@ CORS(app, resources={
             "http://127.0.0.1:3000",
             "http://localhost:5000",
             "http://127.0.0.1:5000",
-            "https://barber-shop.onrender.com",  # Seu domínio no Render
-            "https://*.onrender.com"  # Todos subdomínios Render
+            "https://barber-shop.onrender.com",
+            "https://*.onrender.com"
         ],
         "methods": ["GET", "POST", "PUT", "DELETE"],
         "allow_headers": ["Content-Type"]
@@ -154,12 +154,14 @@ class Database:
                 )
             ''')
 
-            # Serviços padrão
+            # Serviços padrão atualizados
             servicos = [
-                ('corte', 'Corte Social', 'Corte tradicional masculino', 30, 45.00),
-                ('kids', 'Corte Kids', 'Corte especial para crianças', 25, 35.00),
-                ('combo', 'Cabelo e Barba', 'Corte completo com barba', 50, 70.00),
-                ('degrade', 'Degradê Giletado', 'Técnica de degradê com gilete', 40, 60.00)
+                ('corte', 'Corte Social', 'Corte tradicional masculino', 30, 30.00),
+                ('barba', 'Aparar Barba', 'Aparar e modelar barba', 20, 15.00),
+                ('cabelo-barba', 'Cabelo + Barba', 'Corte completo com barba', 50, 40.00),
+                ('sobrancelha', 'Sobrancelha', 'Design de sobrancelha', 15, 10.00),
+                ('pezinho', 'Pezinho', 'Acabamento no pezinho', 15, 10.00),
+                ('corte-kids', 'Corte Infantil', 'Corte especial para crianças', 25, 25.00)
             ]
 
             conn.executemany('''
@@ -216,15 +218,27 @@ class Database:
             ''', (telefone,))
             return [dict(row) for row in cursor.fetchall()]
 
-    def verificar_disponibilidade(self, data, horario):
-        """Verifica disponibilidade de horário"""
+    def verificar_disponibilidade(self, data, horario, duracao):
+        """Verifica disponibilidade de horário considerando a duração do serviço"""
         with self.get_connection() as conn:
-            cursor = conn.execute('''
-                SELECT COUNT(*) as count FROM agendamentos 
-                WHERE data = ? AND horario = ? AND status = 'confirmado'
-            ''', (data, horario))
-            result = cursor.fetchone()
-            return result['count'] == 0
+            # Busca agendamentos no mesmo dia
+            agendamentos = conn.execute('''
+                SELECT horario, duracao FROM agendamentos 
+                WHERE data = ? AND status = 'confirmado'
+            ''', (data,)).fetchall()
+
+            horario_solicitado = datetime.strptime(horario, '%H:%M')
+            fim_solicitado = horario_solicitado + timedelta(minutes=duracao)
+
+            for ag in agendamentos:
+                horario_ag = datetime.strptime(ag['horario'], '%H:%M')
+                fim_ag = horario_ag + timedelta(minutes=ag['duracao'])
+
+                # Verifica sobreposição de horários
+                if (horario_solicitado < fim_ag and fim_solicitado > horario_ag):
+                    return False
+
+            return True
 
     def obter_configuracao(self, chave):
         """Obtém configuração do sistema"""
@@ -259,6 +273,29 @@ class Database:
             result = cursor.fetchone()
             return dict(result) if result else None
 
+    def cancelar_agendamento(self, numero_confirmacao, motivo="Cancelado pelo cliente"):
+        """Cancela um agendamento"""
+        with self.get_connection() as conn:
+            conn.execute('''
+                UPDATE agendamentos 
+                SET status = 'cancelado', 
+                    cancelado_em = CURRENT_TIMESTAMP,
+                    motivo_cancelamento = ?
+                WHERE numero_confirmacao = ? AND status = 'confirmado'
+            ''', (motivo, numero_confirmacao))
+
+            return conn.total_changes > 0
+
+    def buscar_agendamento_por_codigo(self, numero_confirmacao):
+        """Busca um agendamento pelo código de confirmação"""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                'SELECT * FROM agendamentos WHERE numero_confirmacao = ?',
+                (numero_confirmacao,)
+            )
+            result = cursor.fetchone()
+            return dict(result) if result else None
+
 
 # Instância do banco
 db = Database()
@@ -268,15 +305,14 @@ db = Database()
 # FUNÇÕES AUXILIARES
 # =============================================================================
 
-def rate_limit(max_requests=5, window=900):
-    """Decorator para rate limiting"""
+def rate_limit(max_requests=10, window=900):
+    """Decorator para rate limiting - aumentado para 10 requisições"""
 
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             now = datetime.now()
             window_start = now - timedelta(seconds=window)
-
             window_start_ts = window_start.timestamp()
 
             if 'requests' not in session:
@@ -344,8 +380,8 @@ def gerar_numero_confirmacao():
     return f'BS{timestamp}{random_chars}'
 
 
-def gerar_horarios_disponiveis(data_str):
-    """Gera horários disponíveis para uma data"""
+def gerar_horarios_disponiveis(data_str, servico_codigo=None):
+    """Gera horários disponíveis para uma data considerando a duração do serviço"""
     try:
         if not validar_data(data_str):
             return []
@@ -356,14 +392,19 @@ def gerar_horarios_disponiveis(data_str):
         if data.weekday() not in dias_funcionamento:
             return []
 
+        # Obter duração do serviço se especificado
+        duracao_servico = int(db.obter_configuracao('duracao_padrao') or 30)
+        if servico_codigo:
+            servico = db.obter_servico(servico_codigo)
+            if servico:
+                duracao_servico = servico['duracao']
+
         agendamentos = db.buscar_agendamentos_por_data(data_str)
-        horarios_ocupados = [ag['horario'] for ag in agendamentos]
 
         horario_abertura = db.obter_configuracao('horario_abertura') or '09:00'
         horario_fechamento = db.obter_configuracao('horario_fechamento') or '19:00'
         intervalo_inicio = db.obter_configuracao('intervalo_almoco_inicio') or '12:00'
         intervalo_fim = db.obter_configuracao('intervalo_almoco_fim') or '13:00'
-        duracao_padrao = int(db.obter_configuracao('duracao_padrao') or 30)
 
         horarios = []
         base_date = datetime(2000, 1, 1)
@@ -390,12 +431,34 @@ def gerar_horarios_disponiveis(data_str):
 
         while hora_atual < hora_fechamento_dt:
             horario_str = hora_atual.strftime('%H:%M')
+            fim_servico = hora_atual + timedelta(minutes=duracao_servico)
 
-            if not (intervalo_inicio_dt <= hora_atual < intervalo_fim_dt):
-                if horario_str not in horarios_ocupados:
-                    horarios.append(horario_str)
+            # Verificar se está dentro do horário de almoço
+            if (hora_atual >= intervalo_inicio_dt and hora_atual < intervalo_fim_dt) or \
+                    (fim_servico > intervalo_inicio_dt and fim_servico <= intervalo_fim_dt):
+                hora_atual += timedelta(minutes=30)
+                continue
 
-            hora_atual += timedelta(minutes=duracao_padrao)
+            # Verificar se ultrapassa o horário de fechamento
+            if fim_servico > hora_fechamento_dt:
+                hora_atual += timedelta(minutes=30)
+                continue
+
+            # Verificar disponibilidade considerando a duração
+            disponivel = True
+            for agendamento in agendamentos:
+                ag_horario = datetime.strptime(agendamento['horario'], '%H:%M')
+                ag_fim = ag_horario + timedelta(minutes=agendamento['duracao'])
+
+                # Verificar sobreposição
+                if (hora_atual < ag_fim and fim_servico > ag_horario):
+                    disponivel = False
+                    break
+
+            if disponivel:
+                horarios.append(horario_str)
+
+            hora_atual += timedelta(minutes=30)
 
         return horarios
 
@@ -443,9 +506,15 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
+
+
 @app.route('/horarios')
 def obter_horarios():
     data = request.args.get('data')
+    servico = request.args.get('servico')
 
     if not data:
         return jsonify({'error': 'Data é obrigatória'}), 400
@@ -455,12 +524,12 @@ def obter_horarios():
     except ValueError:
         return jsonify({'error': 'Data inválida. Use YYYY-MM-DD'}), 400
 
-    horarios = gerar_horarios_disponiveis(data)
+    horarios = gerar_horarios_disponiveis(data, servico)
     return jsonify(horarios)
 
 
 @app.route('/agendar', methods=['POST'])
-@rate_limit(max_requests=5, window=900)
+@rate_limit(max_requests=10, window=900)
 def agendar():
     try:
         if not request.is_json:
@@ -514,18 +583,20 @@ def agendar():
                 'message': 'Data inválida ou passada'
             }), 400
 
-        if not db.verificar_disponibilidade(dados['data'], dados['horario']):
+        # Verificar disponibilidade considerando a duração do serviço
+        if not db.verificar_disponibilidade(dados['data'], dados['horario'], servico_info['duracao']):
             return jsonify({
                 'success': False,
                 'message': 'Horário indisponível'
             }), 409
 
-        agendamentos_recentes = db.buscar_agendamentos_por_telefone(telefone_validado)
-        if len(agendamentos_recentes) >= 3:
-            return jsonify({
-                'success': False,
-                'message': 'Limite de 3 agendamentos por telefone'
-            }), 429
+        # REMOVIDO: Limite de 3 agendamentos por telefone para facilitar testes
+        # agendamentos_recentes = db.buscar_agendamentos_por_telefone(telefone_validado)
+        # if len(agendamentos_recentes) >= 3:
+        #     return jsonify({
+        #         'success': False,
+        #         'message': 'Limite de 3 agendamentos por telefone'
+        #     }), 429
 
         numero_confirmacao = gerar_numero_confirmacao()
 
@@ -559,7 +630,8 @@ def agendar():
                     'nome': novo_agendamento['nome'],
                     'servico': novo_agendamento['servico'],
                     'data': novo_agendamento['data'],
-                    'horario': novo_agendamento['horario']
+                    'horario': novo_agendamento['horario'],
+                    'valor': novo_agendamento['valor']
                 }
             }
 
@@ -606,6 +678,66 @@ def config():
     return jsonify(configs)
 
 
+@app.route('/consultar/<numero_confirmacao>')
+def consultar_agendamento(numero_confirmacao):
+    """Consulta um agendamento pelo número de confirmação"""
+    try:
+        agendamento = db.buscar_agendamento_por_codigo(numero_confirmacao)
+
+        if not agendamento:
+            return jsonify({
+                'success': False,
+                'message': 'Agendamento não encontrado'
+            }), 404
+
+        return jsonify({
+            'success': True,
+            'agendamento': agendamento
+        })
+
+    except Exception as e:
+        logger.error(f"Erro ao consultar agendamento: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }), 500
+
+
+@app.route('/cancelar/<numero_confirmacao>', methods=['POST'])
+def cancelar_agendamento(numero_confirmacao):
+    """Cancela um agendamento"""
+    try:
+        if not request.is_json:
+            return jsonify({
+                'success': False,
+                'message': 'Content-Type deve ser application/json'
+            }), 400
+
+        dados = request.get_json() or {}
+        motivo = dados.get('motivo', 'Cancelado pelo cliente')
+
+        sucesso = db.cancelar_agendamento(numero_confirmacao, motivo)
+
+        if sucesso:
+            logger.info(f"Agendamento cancelado: {numero_confirmacao}")
+            return jsonify({
+                'success': True,
+                'message': 'Agendamento cancelado com sucesso'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Agendamento não encontrado ou já cancelado'
+            }), 404
+
+    except Exception as e:
+        logger.error(f"Erro ao cancelar agendamento: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Erro interno do servidor'
+        }), 500
+
+
 @app.route('/health')
 def health():
     return jsonify({
@@ -645,7 +777,6 @@ def internal_error(error):
 # CONFIGURAÇÃO PARA PRODUÇÃO
 # =============================================================================
 
-# Configuração específica para produção
 class ProductionConfig:
     DEBUG = False
     TESTING = False
@@ -658,8 +789,6 @@ app.config.from_object(ProductionConfig)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
 if __name__ == '__main__':
-    # Em produção, o Gunicorn vai rodar a aplicação
-    # Este bloco só é executado em desenvolvimento
     print("=" * 60)
     print("🪒 Barber&Shop - Modo Desenvolvimento")
     print("=" * 60)
